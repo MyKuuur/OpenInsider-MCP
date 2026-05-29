@@ -15,15 +15,15 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "22"
-          cache: "npm"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - run: npm ci
       - run: npm run build
@@ -41,11 +41,9 @@ jobs:
             echo "is_new=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish to npm (with provenance)
+      - name: Publish to npm (trusted publishing)
         if: steps.check.outputs.is_new == 'true'
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
       - name: Tag and create GitHub Release
         if: steps.check.outputs.is_new == 'true'
