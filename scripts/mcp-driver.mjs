@@ -8,6 +8,7 @@
 // Usage:
 //   npm run build
 //   node scripts/mcp-driver.mjs APPN
+//   MCP_DRIVER_EXCLUDE=get_quote node scripts/mcp-driver.mjs APPN
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -38,6 +39,24 @@ const INVOCATIONS = [
   ["get_quote", { ticker: TICKER }],
 ];
 
+const allToolNames = new Set(INVOCATIONS.map(([name]) => name));
+const excludedToolNames = (process.env.MCP_DRIVER_EXCLUDE ?? "")
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+const unknownExcludedToolNames = excludedToolNames.filter((name) => !allToolNames.has(name));
+
+if (unknownExcludedToolNames.length > 0) {
+  console.error(
+    `Unknown MCP_DRIVER_EXCLUDE tool name(s): ${unknownExcludedToolNames.join(", ")}`,
+  );
+  console.error(`Known tools: ${[...allToolNames].sort().join(", ")}`);
+  process.exit(1);
+}
+
+const excludedToolNameSet = new Set(excludedToolNames);
+const invocations = INVOCATIONS.filter(([name]) => !excludedToolNameSet.has(name));
+
 const transport = new StdioClientTransport({
   command: "node",
   args: ["dist/index.js"],
@@ -50,12 +69,15 @@ await client.connect(transport);
 
 const list = await client.listTools();
 console.log(`MCP server registered ${list.tools.length} tools.`);
-console.log(`Driving ${INVOCATIONS.length} tool calls against ticker ${TICKER}...\n`);
+if (excludedToolNameSet.size > 0) {
+  console.log(`Excluding tools: ${[...excludedToolNameSet].sort().join(", ")}`);
+}
+console.log(`Driving ${invocations.length} tool calls against ticker ${TICKER}...\n`);
 
 let pass = 0;
 let fail = 0;
 
-for (const [name, args] of INVOCATIONS) {
+for (const [name, args] of invocations) {
   const start = Date.now();
   try {
     const result = await client.callTool({ name, arguments: args });

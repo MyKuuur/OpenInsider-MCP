@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    # Daily at 12:00 UTC. Catches upstream drift (Yahoo / OpenInsider HTML
+    # Daily at 12:00 UTC. Catches upstream drift (OpenInsider HTML
     # restructuring, EDGAR submission API changes, FINRA URL scheme drift)
     # within ~24h of the change rather than waiting for the next PR.
     - cron: "0 12 * * *"
@@ -51,14 +51,18 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
-      # Tier 2: live smoke tests — confirm Yahoo Finance, OpenInsider, SEC
-      # EDGAR, and FINRA endpoints + URL formats still work. Vitest auto-
-      # includes all tests/smoke.*.test.ts when SMOKE=1.
-      - run: SMOKE=1 npx vitest run
-      # Tier 3: drive every registered MCP tool through the real JSON-RPC
-      # stdio transport via the official @modelcontextprotocol/sdk Client.
-      # Same path Claude Desktop uses. Exits 1 if any tool call fails.
-      - run: node scripts/mcp-driver.mjs NVDA
+      # Tier 2: live smoke tests — confirm OpenInsider, SEC EDGAR, and FINRA
+      # endpoints + URL formats still work. Yahoo live quote checks are omitted
+      # from CI smoke because Yahoo's edge responses are noisy.
+      - name: Run live smoke tests
+        run: SMOKE=1 npx vitest run
+      # Tier 3: drive the non-Yahoo MCP tools through the real JSON-RPC stdio
+      # transport via the official @modelcontextprotocol/sdk Client. Same path
+      # Claude Desktop uses. Exits 1 if any tool call fails.
+      - name: Run MCP protocol driver
+        env:
+          MCP_DRIVER_EXCLUDE: get_quote
+        run: node scripts/mcp-driver.mjs NVDA
       # If the daily scheduled smoke fails, file a GitHub issue so the repo
       # owner gets a mobile push notification (via GitHub's app). Only fires
       # on schedule events — PR failures already surface in the PR check
@@ -70,7 +74,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BODY: |
-            Scheduled smoke run detected a regression. This typically means an upstream data source (Yahoo Finance, OpenInsider, SEC EDGAR, or FINRA) changed its response shape, was rate-limiting, or had transient downtime.
+            Scheduled smoke run detected a regression. This typically means an upstream data source (OpenInsider, SEC EDGAR, or FINRA) changed its response shape, was rate-limiting, or had transient downtime.
+
+            Note: CI smoke intentionally skips Yahoo Finance live quote checks because Yahoo's edge responses are noisy. Offline Yahoo parser/tool unit tests still run in `npm test`.
 
             **Run logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
@@ -79,7 +85,6 @@ jobs:
             - MCP driver — tool-call output names the specific failing tool
 
             Common fixes:
-            - **Yahoo shape change:** run `node scripts/capture-yahoo-fixtures.mjs` locally to refresh the fixtures, then update `src/yahoo/parseQuote.ts` if a field path changed.
             - **OpenInsider HTML change:** refresh the affected fixture under `tests/fixtures/` and update `src/scraper/parseTable.ts::readColumnMap` if a header label changed.
             - **EDGAR / FINRA URL drift:** check the relevant source's `fetch.ts` for the URL pattern.
             - **Transient rate limit or outage:** re-run the workflow.
