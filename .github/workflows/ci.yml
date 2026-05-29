@@ -9,9 +9,7 @@ on:
   schedule:
     # Daily at 12:00 UTC. Catches upstream drift (OpenInsider HTML
     # restructuring, EDGAR submission API changes, FINRA URL scheme drift)
-    # within ~24h of the change rather than waiting for the next PR. Yahoo
-    # live quote checks still run on PRs and manual dispatches, but are skipped
-    # on the schedule because Yahoo's edge responses are noisy.
+    # within ~24h of the change rather than waiting for the next PR.
     - cron: "0 12 * * *"
 
 # Cancel a previous in-progress run when a new commit lands on the same ref.
@@ -54,22 +52,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       # Tier 2: live smoke tests — confirm OpenInsider, SEC EDGAR, and FINRA
-      # endpoints + URL formats still work on the daily schedule. PR and manual
-      # runs keep the full suite, including Yahoo Finance.
+      # endpoints + URL formats still work. Yahoo live quote checks are omitted
+      # from CI smoke because Yahoo's edge responses are noisy.
       - name: Run live smoke tests
-        if: github.event_name != 'schedule'
         run: SMOKE=1 npx vitest run
-      - name: Run scheduled live smoke tests without Yahoo
-        if: github.event_name == 'schedule'
-        run: SMOKE=1 npx vitest run --exclude tests/smoke.yahoo.live.test.ts
-      # Tier 3: drive every registered MCP tool through the real JSON-RPC
-      # stdio transport via the official @modelcontextprotocol/sdk Client.
-      # Same path Claude Desktop uses. Exits 1 if any tool call fails.
+      # Tier 3: drive the non-Yahoo MCP tools through the real JSON-RPC stdio
+      # transport via the official @modelcontextprotocol/sdk Client. Same path
+      # Claude Desktop uses. Exits 1 if any tool call fails.
       - name: Run MCP protocol driver
-        if: github.event_name != 'schedule'
-        run: node scripts/mcp-driver.mjs NVDA
-      - name: Run scheduled MCP protocol driver without Yahoo
-        if: github.event_name == 'schedule'
         env:
           MCP_DRIVER_EXCLUDE: get_quote
         run: node scripts/mcp-driver.mjs NVDA
@@ -86,7 +76,7 @@ jobs:
           BODY: |
             Scheduled smoke run detected a regression. This typically means an upstream data source (OpenInsider, SEC EDGAR, or FINRA) changed its response shape, was rate-limiting, or had transient downtime.
 
-            Note: scheduled runs intentionally skip Yahoo Finance live quote checks because Yahoo's edge responses are noisy. PR and manual runs still cover Yahoo.
+            Note: CI smoke intentionally skips Yahoo Finance live quote checks because Yahoo's edge responses are noisy. Offline Yahoo parser/tool unit tests still run in `npm test`.
 
             **Run logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
