@@ -15,7 +15,12 @@ function buildScreenerQuery(f: ScreenFilters): string {
 
   if (f.ticker) params.set("s", f.ticker.toUpperCase());
   if (f.insiderCik) params.set("o", f.insiderCik);
-  if (f.daysBack !== undefined) params.set("daysago", String(f.daysBack));
+  // `fd` is the filing-date window: "filed within the last N days". OpenInsider's
+  // other date param, `daysago`, anchors the window N days in the PAST and ends it
+  // there, so `daysago=30` returns filings from ~60-30 days ago rather than the last
+  // 30. Every other tool in this server treats daysBack as "within the last N days"
+  // (see tools/filterByDays.ts), so `fd` is the parameter that matches.
+  if (f.daysBack !== undefined) params.set("fd", String(f.daysBack));
 
   // Trade value range — OpenInsider expects values in thousands of dollars
   if (f.minTradeValue !== undefined) params.set("vl", String(Math.floor(f.minTradeValue / 1000)));

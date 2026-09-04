@@ -128,6 +128,14 @@ describe("screen", () => {
     expect(purchases.every((t) => t.transactionType.startsWith("P"))).toBe(true);
   });
 
+  it("maps daysBack to the `fd` filing-date window, not the `daysago` anchor", async () => {
+    vi.mocked(fetchOpenInsider).mockResolvedValue(fixture("latest.html"));
+    await screen({ daysBack: 30 });
+    const path = vi.mocked(fetchOpenInsider).mock.calls[0]?.[0] ?? "";
+    expect(path).toContain("fd=30");
+    expect(path).not.toContain("daysago");
+  });
+
   it("caps the limit param at 1000 even if a higher value is requested", async () => {
     vi.mocked(fetchOpenInsider).mockResolvedValue(fixture("latest.html"));
     await screen({ limit: 5000 });

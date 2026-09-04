@@ -217,7 +217,7 @@ Generic OpenInsider screener with flexible filters. Use this when none of the na
 |---|---|---|
 | `ticker` | string | Filter to one symbol. |
 | `insiderCik` | string | Filter to one insider by CIK. |
-| `daysBack` | int | |
+| `daysBack` | int | Only filings from the last N days. |
 | `transactionTypes` | `Array<"P"\|"S"\|"A"\|"D"\|"M">` | Applied client-side after fetch. See [transaction codes](#transaction-codes). |
 | `minTradeValue` / `maxTradeValue` | number (USD) | Trade value range. |
 | `minPrice` / `maxPrice` | number (USD) | Per-share price range. |
